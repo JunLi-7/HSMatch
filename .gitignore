@@ -1,0 +1,32 @@
+node_modules
+dist
+.trash
+data
+backups
+*.log
+.DS_Store
+.env
+.env.local
+
+# 线上同步脚本（含 WorkBuddy 平台凭证，禁止入库）
+online-sync.mjs
+
+# JWT 签名密钥：改用环境变量 JWT_SECRET 注入（server/auth.js 已支持），禁止入库
+server/app-secret.json
+
+# WorkBuddy 工具内部状态（非项目源码，含记忆/应用配置）
+.workbuddy/
+.wbapp_*.genie
+
+# 临时/探针文件（可能含真实会话 token）
+tmp-*.txt
+tmp-*.mjs
+*.token
+_probe.db*
+
+# 运维脚本（硬编码线上域名与管理员凭据，禁止入库）
+cleanup-online-users.mjs
+online-sync.mjs
+
+# 本地诊断输出
+.git-out.txt

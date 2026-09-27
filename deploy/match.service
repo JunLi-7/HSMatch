@@ -1,0 +1,23 @@
+# systemd 单元：让 Node 服务在崩溃/重启后自动拉起
+# 用法：
+#   1) 把本文件放到 /etc/systemd/system/match.service
+#   2) 把 WorkingDirectory / User 改成你的实际路径和账号
+#   3) sudo systemctl daemon-reload && sudo systemctl enable --now match
+[Unit]
+Description=炉石对战赛事系统
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/hs-match          # ← 改成你的项目实际绝对路径
+ExecStart=/usr/bin/bash /opt/hs-match/deploy/start.sh
+Restart=on-failure
+RestartSec=3
+User=www-data                           # ← 改成非 root 的运行用户
+Environment=PORT=3001
+# 可选：固定 JWT 密钥，使服务重启后已签发的 JWT 令牌依然有效
+# （本项目登录态以数据库会话为主，JWT 仅作降级，不设置也能正常用）
+# Environment=JWT_SECRET=换成你自己的长随机串
+
+[Install]
+WantedBy=multi-user.target
