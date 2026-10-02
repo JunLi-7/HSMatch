@@ -1,4 +1,4 @@
-// 用户管理路由（仅管理员）：列表/搜索、代建账号、重置密码、删除（有赛事记录则禁止）
+// 用户管理路由（仅管理员）：列表/搜索、代建账号、重置密码、删除（自动清理归属，仅禁删自己/末管理员）
 import express from 'express'
 import db from '../db.js'
 import { hashPassword, USERNAME_RE, NAME_RE } from '../auth.js'
@@ -66,7 +66,7 @@ router.post('/:id/reset-password', requireAuth, requireAdmin, (req, res) => {
   res.json({ ok: true })
 })
 
-// 删除账号：有报名/对阵记录则禁止，禁止删自己与最后一个管理员
+// 删除账号：禁止删自己与最后一个管理员；其余情况自动清理归属后删除（不拦）
 router.delete('/:id', requireAuth, requireAdmin, (req, res) => {
   const id = Number(req.params.id)
   if (id === req.user.id) {
@@ -82,29 +82,18 @@ router.delete('/:id', requireAuth, requireAdmin, (req, res) => {
     }
   }
 
-  // 有赛事报名/对阵记录则禁止删除，避免数据断裂
-  const regCount = db.prepare('SELECT COUNT(*) AS c FROM registrations WHERE user_id = ?').get(id).c
-  if (regCount > 0) {
-    return res
-      .status(409)
-      .json({
-        error: `该账号已有 ${regCount} 条赛事报名/对阵记录，无法删除。请先处理其赛事记录后再删除。`,
-      })
+  // 自动清理，避免数据断裂：解除其创建的赛事归属（赛事保留）、清掉报名与登录会话，再删用户
+  const tx = db.transaction(() => {
+    db.prepare('UPDATE tournaments SET created_by = NULL WHERE created_by = ?').run(id)
+    db.prepare('DELETE FROM registrations WHERE user_id = ?').run(id)
+    db.prepare('DELETE FROM sessions WHERE user_id = ?').run(id)
+    db.prepare('DELETE FROM users WHERE id = ?').run(id)
+  })
+  try {
+    tx()
+  } catch (e) {
+    return res.status(500).json({ error: '删除失败：' + e.message })
   }
-
-  // 自己创建过赛事也不能删（tournaments.created_by 是外键，直接删会触发约束导致服务端 500）
-  const createdCount = db
-    .prepare('SELECT COUNT(*) AS c FROM tournaments WHERE created_by = ?')
-    .get(id).c
-  if (createdCount > 0) {
-    return res
-      .status(409)
-      .json({
-        error: `该账号创建过 ${createdCount} 场赛事，无法删除。请先在「赛事管理」删除这些赛事后再删除账号。`,
-      })
-  }
-
-  db.prepare('DELETE FROM users WHERE id = ?').run(id)
   res.json({ ok: true })
 })
 
