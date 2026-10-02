@@ -1,23 +1,27 @@
-# systemd 单元：让 Node 服务在崩溃/重启后自动拉起
-# 用法：
-#   1) 把本文件放到 /etc/systemd/system/match.service
-#   2) 把 WorkingDirectory / User 改成你的实际路径和账号
-#   3) sudo systemctl daemon-reload && sudo systemctl enable --now match
+# systemd 单元：让 Node 服务开机自启、崩溃/重启后自动拉起
+# 用法（服务器上，项目已放在 /opt/hs-match）：
+#   1) sudo cp /opt/hs-match/deploy/match.service /etc/systemd/system/match.service
+#   2) sudo systemctl daemon-reload
+#   3) sudo systemctl enable --now match
+#   4) 查看状态：sudo systemctl status match      实时日志：sudo journalctl -u match -f
 [Unit]
-Description=炉石对战赛事系统
+Description=Hearthstone Match System (Node)
 After=network.target
 
 [Service]
 Type=simple
-WorkingDirectory=/opt/hs-match          # ← 改成你的项目实际绝对路径
+# 项目绝对路径（本次部署固定为 /opt/hs-match）
+WorkingDirectory=/opt/hs-match
 ExecStart=/usr/bin/bash /opt/hs-match/deploy/start.sh
 Restart=on-failure
 RestartSec=3
-User=www-data                           # ← 改成非 root 的运行用户
+# 省略 User= 时 systemd 默认以 root 运行（个人单机服务器最简单，SQLite 文件读写不会有权限问题）。
+# 想更安全可改专用用户：先 `useradd -r -s /usr/sbin/nologin hs && chown -R hs:hs /opt/hs-match`，再在下面加 User=hs
 Environment=PORT=3001
-# 可选：固定 JWT 密钥，使服务重启后已签发的 JWT 令牌依然有效
-# （本项目登录态以数据库会话为主，JWT 仅作降级，不设置也能正常用）
-# Environment=JWT_SECRET=换成你自己的长随机串
+Environment=NODE_ENV=production
+# JWT 密钥：建议写在 /opt/hs-match/.env（应用启动会自动读取），内容形如 JWT_SECRET=一长串随机值
+# 生成：openssl rand -hex 32
+EnvironmentFile=-/opt/hs-match/.env
 
 [Install]
 WantedBy=multi-user.target
